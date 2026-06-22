@@ -52,4 +52,16 @@ public class BookingService {
         return bookingRepository.findById(id)
                 .filter(b -> b.getUser().getEmail().equals(userEmail));
     }
+
+    @Transactional
+    public Booking cancelBooking(UUID id, String userEmail) {
+        Booking booking = bookingRepository.findById(id)
+                .filter(b -> b.getUser().getEmail().equals(userEmail))
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+        if ("cancelled".equals(booking.getStatus())) {
+            throw new RuntimeException("Booking already cancelled");
+        }
+        booking.setStatus("cancelled");
+        return bookingRepository.save(booking);
+    }
 }
