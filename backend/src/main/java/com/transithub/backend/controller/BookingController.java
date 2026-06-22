@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final com.transithub.backend.service.EmailService emailService;
 
-    public BookingController(BookingService bookingService) {
+    public BookingController(BookingService bookingService, com.transithub.backend.service.EmailService emailService) {
         this.bookingService = bookingService;
+        this.emailService = emailService;
     }
 
     @PostMapping
@@ -41,6 +43,13 @@ public class BookingController {
     public ResponseEntity<Booking> getBookingById(@PathVariable UUID id, Authentication authentication) {
         return bookingService.getBookingById(id, authentication.getName())
                 .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/receipt")
+    public ResponseEntity<?> sendReceipt(@PathVariable UUID id, Authentication authentication) {
+        return bookingService.getBookingById(id, authentication.getName())
+                .map(booking -> { emailService.sendReceipt(booking); return ResponseEntity.ok(Map.of("sent", true)); })
                 .orElse(ResponseEntity.notFound().build());
     }
 
