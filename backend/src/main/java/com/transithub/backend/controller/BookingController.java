@@ -7,7 +7,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -33,5 +35,12 @@ public class BookingController {
     public ResponseEntity<List<Booking>> getMyBookings(Authentication authentication) {
         String email = authentication.getName();
         return ResponseEntity.ok(bookingService.getUserBookings(email));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Booking> getBookingById(@PathVariable UUID id, Authentication authentication) {
+        return bookingService.getBookingById(id, authentication.getName())
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 }

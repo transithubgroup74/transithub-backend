@@ -5,6 +5,7 @@ import com.transithub.backend.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -45,5 +46,10 @@ public class BookingService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return bookingRepository.findByUser(user);
+    }
+
+    public Optional<Booking> getBookingById(UUID id, String userEmail) {
+        return bookingRepository.findById(id)
+                .filter(b -> b.getUser().getEmail().equals(userEmail));
     }
 }
