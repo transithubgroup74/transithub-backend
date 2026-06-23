@@ -30,7 +30,8 @@ public class BookingController {
         String email = authentication.getName();
         UUID scheduleId = UUID.fromString((String) body.get("scheduleId"));
         Integer seatNumber = (Integer) body.get("seatNumber");
-        return ResponseEntity.ok(bookingService.createBooking(email, scheduleId, seatNumber));
+        String qrCode = (String) body.get("qrCode");
+        return ResponseEntity.ok(bookingService.createBooking(email, scheduleId, seatNumber, qrCode));
     }
 
     @GetMapping("/my")
@@ -60,5 +61,51 @@ public class BookingController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    @PostMapping("/{id}/complete")
+    public ResponseEntity<?> completeBooking(@PathVariable UUID id) {
+        try {
+            Booking booking = bookingService.completeBooking(id);
+            return ResponseEntity.ok(Map.of(
+                "status", "completed",
+                "bookingId", booking.getId().toString(),
+                "passenger", booking.getUser().getName(),
+                "seat", booking.getSeatNumber(),
+                "route", booking.getSchedule().getRoute().getOrigin() + " → " + booking.getSchedule().getRoute().getDestination()
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/verify")
+    public ResponseEntity<?> verifyBooking(@PathVariable UUID id) {
+        return bookingService.getBookingByIdForConductor(id)
+                .map(b -> ResponseEntity.ok(Map.of(
+                    "id", b.getId().toString(),
+                    "status", b.getStatus(),
+                    "passenger", b.getUser().getName(),
+                    "seat", b.getSeatNumber(),
+                    "route", b.getSchedule().getRoute().getOrigin() + " → " + b.getSchedule().getRoute().getDestination()
+                )))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/verify-qr")
+    public ResponseEntity<?> verifyByQr(@RequestBody Map<String, String> body) {
+        String qrCode = body.get("qrCode");
+        if (qrCode == null || qrCode.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "qrCode is required"));
+        }
+        return bookingService.findByQrCode(qrCode)
+                .map(b -> ResponseEntity.ok(Map.of(
+                    "id", b.getId().toString(),
+                    "status", b.getStatus(),
+                    "passenger", b.getUser().getName(),
+                    "seat", b.getSeatNumber(),
+                    "route", b.getSchedule().getRoute().getOrigin() + " → " + b.getSchedule().getRoute().getDestination()
+                )))
+                .orElse(ResponseEntity.notFound().build());
     }
 }

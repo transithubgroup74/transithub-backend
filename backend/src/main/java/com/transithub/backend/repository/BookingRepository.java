@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface BookingRepository extends JpaRepository<Booking, UUID> {
     List<Booking> findByUser(User user);
+    java.util.Optional<Booking> findByQrCode(String qrCode);
 }
