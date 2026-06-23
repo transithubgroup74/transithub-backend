@@ -25,6 +25,11 @@ public class BookingService {
 
     @Transactional
     public Booking createBooking(String userEmail, UUID scheduleId, Integer seatNumber) {
+        return createBooking(userEmail, scheduleId, seatNumber, null);
+    }
+
+    @Transactional
+    public Booking createBooking(String userEmail, UUID scheduleId, Integer seatNumber, String qrCode) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -37,6 +42,7 @@ public class BookingService {
                 .seatNumber(seatNumber)
                 .totalAmount(schedule.getRoute().getBasePrice())
                 .status("pending")
+                .qrCode(qrCode)
                 .build();
 
         return bookingRepository.save(booking);
@@ -63,5 +69,27 @@ public class BookingService {
         }
         booking.setStatus("cancelled");
         return bookingRepository.save(booking);
+    }
+
+    @Transactional
+    public Booking completeBooking(UUID id) {
+        Booking booking = bookingRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+        if ("cancelled".equals(booking.getStatus())) {
+            throw new RuntimeException("Booking is cancelled");
+        }
+        if ("completed".equals(booking.getStatus())) {
+            throw new RuntimeException("Booking already completed");
+        }
+        booking.setStatus("completed");
+        return bookingRepository.save(booking);
+    }
+
+    public Optional<Booking> getBookingByIdForConductor(UUID id) {
+        return bookingRepository.findById(id);
+    }
+
+    public Optional<Booking> findByQrCode(String qrCode) {
+        return bookingRepository.findByQrCode(qrCode);
     }
 }

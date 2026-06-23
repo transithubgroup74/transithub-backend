@@ -35,6 +35,9 @@ public class Booking {
 
     private BigDecimal totalAmount;
 
+    @Column(length = 512)
+    private String qrCode;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
