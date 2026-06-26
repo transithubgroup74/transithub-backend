@@ -23,10 +23,17 @@ public class EmailService {
         if (fromEmail == null || fromEmail.isBlank()) return;
         try {
             String to = booking.getUser().getEmail();
-            String origin = booking.getSchedule().getRoute().getOrigin();
-            String destination = booking.getSchedule().getRoute().getDestination();
-            String dep = booking.getSchedule().getDepartsAt()
-                    .format(DateTimeFormatter.ofPattern("EEE dd MMM yyyy, HH:mm"));
+            String origin, destination, dep;
+            if (booking.getSchedule() != null && booking.getSchedule().getRoute() != null) {
+                origin = booking.getSchedule().getRoute().getOrigin();
+                destination = booking.getSchedule().getRoute().getDestination();
+                dep = booking.getSchedule().getDepartsAt()
+                        .format(DateTimeFormatter.ofPattern("EEE dd MMM yyyy, HH:mm"));
+            } else {
+                origin = booking.getOrigin() != null ? booking.getOrigin() : "";
+                destination = booking.getDestination() != null ? booking.getDestination() : "";
+                dep = booking.getDepartsAt() != null ? booking.getDepartsAt() : "";
+            }
             String ref = booking.getId().toString().toUpperCase().substring(0, 8);
             String amount = booking.getTotalAmount().toPlainString();
 

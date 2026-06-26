@@ -43,9 +43,50 @@ public class BookingService {
                 .totalAmount(schedule.getRoute().getBasePrice())
                 .status("pending")
                 .qrCode(qrCode)
+                .origin(schedule.getRoute().getOrigin())
+                .destination(schedule.getRoute().getDestination())
                 .build();
 
         return bookingRepository.save(booking);
+    }
+
+    /**
+     * Creates a booking from full trip details, without requiring a real
+     * Schedule. Used for demo/mock buses so every booking still persists to
+     * the user's account and syncs across devices.
+     */
+    @Transactional
+    public Booking createCustomBooking(String userEmail, String origin, String destination,
+                                       Integer seatNumber, java.math.BigDecimal totalAmount,
+                                       String departsAt, String operator, String busClass,
+                                       String qrCode, String status) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Booking booking = Booking.builder()
+                .user(user)
+                .seatNumber(seatNumber)
+                .totalAmount(totalAmount)
+                .status(status != null ? status : "confirmed")
+                .qrCode(qrCode)
+                .origin(origin)
+                .destination(destination)
+                .departsAt(departsAt)
+                .operator(operator)
+                .busClass(busClass)
+                .build();
+
+        return bookingRepository.save(booking);
+    }
+
+    /** Route label that works whether the booking has a Schedule or its own fields. */
+    public static String routeLabel(Booking b) {
+        if (b.getSchedule() != null && b.getSchedule().getRoute() != null) {
+            return b.getSchedule().getRoute().getOrigin() + " → " + b.getSchedule().getRoute().getDestination();
+        }
+        String o = b.getOrigin() != null ? b.getOrigin() : "";
+        String d = b.getDestination() != null ? b.getDestination() : "";
+        return o + " → " + d;
     }
 
     public List<Booking> getUserBookings(String userEmail) {

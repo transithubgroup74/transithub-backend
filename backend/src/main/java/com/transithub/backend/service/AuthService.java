@@ -35,6 +35,7 @@ public class AuthService {
         User user = User.builder()
                 .name(request.getName())
                 .email(request.getEmail())
+                .phone(request.getPhone())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .build();
         userRepository.save(user);
@@ -44,6 +45,9 @@ public class AuthService {
                 .token(token)
                 .email(user.getEmail())
                 .role("USER")
+                .name(user.getName())
+                .phone(user.getPhone())
+                .photoUrl(user.getPhotoUrl())
                 .build();
     }
 
@@ -60,6 +64,9 @@ public class AuthService {
                 .token(token)
                 .email(user.getEmail())
                 .role("USER")
+                .name(user.getName())
+                .phone(user.getPhone())
+                .photoUrl(user.getPhotoUrl())
                 .build();
     }
 
@@ -84,5 +91,26 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         user.setFcmToken(token);
         userRepository.save(user);
+    }
+
+    public java.util.Map<String, Object> getProfile(String email) {
+        User u = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        java.util.Map<String, Object> m = new java.util.HashMap<>();
+        m.put("name", u.getName());
+        m.put("email", u.getEmail());
+        m.put("phone", u.getPhone());
+        m.put("photoUrl", u.getPhotoUrl());
+        return m;
+    }
+
+    public java.util.Map<String, Object> updateProfile(String email, java.util.Map<String, Object> body) {
+        User u = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (body.get("name") != null) u.setName((String) body.get("name"));
+        if (body.get("phone") != null) u.setPhone((String) body.get("phone"));
+        if (body.get("photoUrl") != null) u.setPhotoUrl((String) body.get("photoUrl"));
+        userRepository.save(u);
+        return getProfile(email);
     }
 }

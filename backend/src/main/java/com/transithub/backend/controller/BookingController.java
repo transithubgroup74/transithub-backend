@@ -34,6 +34,35 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.createBooking(email, scheduleId, seatNumber, qrCode));
     }
 
+    // Create a booking from full trip details (works for demo/mock buses that
+    // have no real schedule). Persists to the user's account so it syncs.
+    @PostMapping("/custom")
+    public ResponseEntity<?> createCustomBooking(
+            @RequestBody Map<String, Object> body,
+            Authentication authentication) {
+        try {
+            String email = authentication.getName();
+            Integer seat = body.get("seatNumber") != null
+                    ? Integer.valueOf(String.valueOf(body.get("seatNumber"))) : null;
+            java.math.BigDecimal amount = body.get("totalAmount") != null
+                    ? new java.math.BigDecimal(String.valueOf(body.get("totalAmount"))) : java.math.BigDecimal.ZERO;
+            Booking booking = bookingService.createCustomBooking(
+                    email,
+                    (String) body.get("origin"),
+                    (String) body.get("destination"),
+                    seat,
+                    amount,
+                    (String) body.get("departsAt"),
+                    (String) body.get("operator"),
+                    (String) body.get("busClass"),
+                    (String) body.get("qrCode"),
+                    (String) body.get("status"));
+            return ResponseEntity.ok(booking);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/my")
     public ResponseEntity<List<Booking>> getMyBookings(Authentication authentication) {
         String email = authentication.getName();
@@ -72,7 +101,7 @@ public class BookingController {
                 "bookingId", booking.getId().toString(),
                 "passenger", booking.getUser().getName(),
                 "seat", booking.getSeatNumber(),
-                "route", booking.getSchedule().getRoute().getOrigin() + " → " + booking.getSchedule().getRoute().getDestination()
+                "route", BookingService.routeLabel(booking)
             ));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -87,7 +116,7 @@ public class BookingController {
                     "status", b.getStatus(),
                     "passenger", b.getUser().getName(),
                     "seat", b.getSeatNumber(),
-                    "route", b.getSchedule().getRoute().getOrigin() + " → " + b.getSchedule().getRoute().getDestination()
+                    "route", BookingService.routeLabel(b)
                 )))
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -104,7 +133,7 @@ public class BookingController {
                     "status", b.getStatus(),
                     "passenger", b.getUser().getName(),
                     "seat", b.getSeatNumber(),
-                    "route", b.getSchedule().getRoute().getOrigin() + " → " + b.getSchedule().getRoute().getDestination()
+                    "route", BookingService.routeLabel(b)
                 )))
                 .orElse(ResponseEntity.notFound().build());
     }

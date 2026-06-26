@@ -38,6 +38,15 @@ public class Booking {
     @Column(length = 512)
     private String qrCode;
 
+    // Self-contained trip details — used when there is no real Schedule
+    // (e.g. demo/mock buses) so the booking can still be saved to the user's
+    // account and sync across devices. All nullable to keep existing rows valid.
+    private String origin;
+    private String destination;
+    private String departsAt;
+    private String operator;
+    private String busClass;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 

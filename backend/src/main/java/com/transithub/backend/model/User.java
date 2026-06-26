@@ -27,6 +27,9 @@ public class User {
     private String fcmToken;
     private String platform;
 
+    @Column(columnDefinition = "TEXT")
+    private String photoUrl;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
