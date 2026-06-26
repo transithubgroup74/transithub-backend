@@ -1,0 +1,20 @@
+# Build output
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Stale duplicate copies must never be committed again — the live code is /backend
+OneDrive/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs / env
+*.log
+.env
