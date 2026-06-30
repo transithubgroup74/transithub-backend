@@ -12,12 +12,16 @@ public class CorsConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Allow the mobile app, the GitHub Pages dashboard, and local dev/file use.
-        // Pattern form is required to combine "*" with allowCredentials.
-        config.setAllowedOriginPatterns(List.of("*"));
+        // Open CORS so the dashboard works from anywhere — the hosted GitHub
+        // Pages link AND when opened as a local file (file:// origin = "null").
+        // allowCredentials=false lets us return Access-Control-Allow-Origin: *,
+        // which any origin (including null/file://) accepts. The mobile app is
+        // native and isn't subject to CORS, and admin endpoints are open, so
+        // nothing here relies on credentials/cookies.
+        config.setAllowedOrigins(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);
+        config.setAllowCredentials(false);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
