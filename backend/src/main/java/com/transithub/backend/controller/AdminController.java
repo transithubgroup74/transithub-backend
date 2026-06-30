@@ -1,6 +1,8 @@
 package com.transithub.backend.controller;
 
 import com.transithub.backend.model.Booking;
+import com.transithub.backend.model.Route;
+import com.transithub.backend.model.Schedule;
 import com.transithub.backend.model.User;
 import com.transithub.backend.repository.*;
 import com.transithub.backend.service.BookingService;
@@ -71,6 +73,32 @@ public class AdminController {
             m.put("trips", trips);
             out.add(m);
         }
+        return out;
+    }
+
+    /**
+     * Flattened schedule list for the dashboard. The plain /api/schedules
+     * returns ~1,200 fully-nested entities (~1 MB) which is slow to transfer;
+     * this returns just the fields the dashboard renders so it loads fast.
+     */
+    @GetMapping("/schedules")
+    public List<Map<String, Object>> schedules() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Schedule s : scheduleRepository.findAll()) {
+            Route r = s.getRoute();
+            String model = s.getBus() != null ? s.getBus().getModel() : null;
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", s.getId().toString());
+            m.put("origin", r != null ? r.getOrigin() : null);
+            m.put("destination", r != null ? r.getDestination() : null);
+            m.put("operator", (r != null && r.getOperator() != null) ? r.getOperator().getCompanyName() : null);
+            m.put("departsAt", s.getDepartsAt());
+            m.put("status", s.getStatus());
+            m.put("source", s.getSource());
+            m.put("busClass", (model != null && model.toLowerCase().contains("exec")) ? "Executive" : "Regular");
+            out.add(m);
+        }
+        out.sort((a, c) -> String.valueOf(a.get("departsAt")).compareTo(String.valueOf(c.get("departsAt"))));
         return out;
     }
 
