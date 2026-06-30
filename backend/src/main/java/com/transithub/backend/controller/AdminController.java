@@ -84,7 +84,11 @@ public class AdminController {
     @GetMapping("/schedules")
     public List<Map<String, Object>> schedules() {
         List<Map<String, Object>> out = new ArrayList<>();
+        java.time.LocalDate today = java.time.LocalDate.now();
         for (Schedule s : scheduleRepository.findAll()) {
+            // Upcoming only — keep all of today plus future days, hide past ones
+            // so the timetable is forward-looking (soonest first once sorted).
+            if (s.getDepartsAt() == null || s.getDepartsAt().toLocalDate().isBefore(today)) continue;
             Route r = s.getRoute();
             String model = s.getBus() != null ? s.getBus().getModel() : null;
             Map<String, Object> m = new HashMap<>();
