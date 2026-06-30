@@ -23,7 +23,7 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/admin/**", "/api/routes", "/api/routes/**", "/api/schedules", "/api/schedules/**", "/api/bookings/*/complete", "/api/bookings/*/verify", "/api/bookings/verify-qr").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/admin/**", "/api/routes", "/api/routes/**", "/api/schedules", "/api/schedules/**", "/api/buses", "/api/buses/**", "/api/drivers", "/api/drivers/**", "/api/operators", "/api/operators/**", "/api/bookings/*/complete", "/api/bookings/*/verify", "/api/bookings/verify-qr").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

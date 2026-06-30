@@ -18,13 +18,60 @@ public class DataSeeder implements CommandLineRunner {
     private final BusRepository busRepo;
     private final RouteRepository routeRepo;
     private final ScheduleRepository scheduleRepo;
+    private final DriverRepository driverRepo;
 
     @Override
     public void run(String... args) {
         if (operatorRepo.count() == 0) {
             seedStaticData();
         }
+        // Independent guards so these also populate on an already-seeded DB
+        // (the production DB already has operators, so seedStaticData is skipped).
+        backfillBusStatus();
+        if (driverRepo.count() == 0) {
+            seedDrivers();
+        }
         refreshSchedules();
+    }
+
+    // Existing buses pre-date the `status` column — default them to "active".
+    private void backfillBusStatus() {
+        List<Bus> buses = busRepo.findAll();
+        for (Bus b : buses) {
+            if (b.getStatus() == null || b.getStatus().isBlank()) {
+                b.setStatus("active");
+                busRepo.save(b);
+            }
+        }
+    }
+
+    private Operator findOperator(String companyName) {
+        return operatorRepo.findAll().stream()
+                .filter(o -> companyName.equalsIgnoreCase(o.getCompanyName()))
+                .findFirst().orElse(null);
+    }
+
+    private void seedDrivers() {
+        Operator vip = findOperator("VIP Jeoun");
+        Operator obb = findOperator("OA Express");
+        Operator stc = findOperator("STC Coaches");
+        Operator kingdom = findOperator("Kingdom Transport");
+
+        if (vip != null) {
+            driverRepo.save(Driver.builder().operator(vip).name("Kwame Mensah").phone("0244111201").licenseNumber("GHA-DL-2201").status("active").build());
+            driverRepo.save(Driver.builder().operator(vip).name("Yaw Boateng").phone("0244111202").licenseNumber("GHA-DL-2202").status("active").build());
+        }
+        if (obb != null) {
+            driverRepo.save(Driver.builder().operator(obb).name("Kofi Owusu").phone("0244111203").licenseNumber("GHA-DL-2203").status("active").build());
+            driverRepo.save(Driver.builder().operator(obb).name("Abena Sarpong").phone("0244111204").licenseNumber("GHA-DL-2204").status("off-duty").build());
+        }
+        if (stc != null) {
+            driverRepo.save(Driver.builder().operator(stc).name("Ibrahim Mohammed").phone("0244111205").licenseNumber("GHA-DL-2205").status("active").build());
+        }
+        if (kingdom != null) {
+            driverRepo.save(Driver.builder().operator(kingdom).name("Daniel Asante").phone("0244111206").licenseNumber("GHA-DL-2206").status("active").build());
+        }
+        System.out.println("TransitHub: Drivers seeded.");
     }
 
     private void seedStaticData() {
