@@ -41,6 +41,13 @@ public class ScheduleController {
             Bus bus = null;
             Object busId = body.get("busId");
             if (busId != null) bus = busRepository.findById(UUID.fromString(String.valueOf(busId))).orElse(null);
+            // Prefer a bus that belongs to the route's operator so the schedule
+            // shows the right company; fall back to any bus.
+            if (bus == null && route.getOperator() != null) {
+                bus = busRepository.findAll().stream()
+                        .filter(b -> b.getOperator() != null && route.getOperator().getId().equals(b.getOperator().getId()))
+                        .findFirst().orElse(null);
+            }
             if (bus == null) bus = busRepository.findAll().stream().findFirst().orElse(null);
 
             String raw = String.valueOf(body.get("departsAt")).replace(' ', 'T');
@@ -51,6 +58,7 @@ public class ScheduleController {
                     .bus(bus)
                     .departsAt(departsAt)
                     .status("active")
+                    .source("admin")
                     .build();
             return ResponseEntity.ok(scheduleRepository.save(schedule));
         } catch (RuntimeException e) {

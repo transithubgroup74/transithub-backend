@@ -29,4 +29,9 @@ public class Schedule {
 
     @Builder.Default
     private String status = "active";
+
+    // "seeded" for auto-generated schedules, "admin" for ones created from the
+    // dashboard. The passenger app surfaces "admin" schedules on top of its demo
+    // listings so dashboard additions show up live.
+    private String source;
 }
