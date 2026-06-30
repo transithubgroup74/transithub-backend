@@ -24,15 +24,21 @@ public class AdminController {
     private final UserRepository userRepository;
     private final RouteRepository routeRepository;
     private final ScheduleRepository scheduleRepository;
+    private final PaymentRepository paymentRepository;
+    private final TicketRepository ticketRepository;
 
     public AdminController(BookingRepository bookingRepository,
                           UserRepository userRepository,
                           RouteRepository routeRepository,
-                          ScheduleRepository scheduleRepository) {
+                          ScheduleRepository scheduleRepository,
+                          PaymentRepository paymentRepository,
+                          TicketRepository ticketRepository) {
         this.bookingRepository = bookingRepository;
         this.userRepository = userRepository;
         this.routeRepository = routeRepository;
         this.scheduleRepository = scheduleRepository;
+        this.paymentRepository = paymentRepository;
+        this.ticketRepository = ticketRepository;
     }
 
     @GetMapping("/bookings")
@@ -56,6 +62,23 @@ public class AdminController {
         }
         out.sort((a, c) -> String.valueOf(c.get("createdAt")).compareTo(String.valueOf(a.get("createdAt"))));
         return out;
+    }
+
+    /**
+     * Admin-only hard delete of a booking (used to clean up test records).
+     * Removes dependent payment/ticket rows first to satisfy the foreign keys.
+     */
+    @DeleteMapping("/bookings/{id}")
+    public ResponseEntity<?> deleteBooking(@PathVariable UUID id) {
+        if (!bookingRepository.existsById(id)) return ResponseEntity.notFound().build();
+        paymentRepository.findAll().stream()
+                .filter(p -> p.getBooking() != null && id.equals(p.getBooking().getId()))
+                .forEach(paymentRepository::delete);
+        ticketRepository.findAll().stream()
+                .filter(t -> t.getBooking() != null && id.equals(t.getBooking().getId()))
+                .forEach(ticketRepository::delete);
+        bookingRepository.deleteById(id);
+        return ResponseEntity.ok(Map.of("deleted", true));
     }
 
     @GetMapping("/passengers")
