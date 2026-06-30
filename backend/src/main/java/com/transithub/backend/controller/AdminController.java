@@ -81,6 +81,30 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("deleted", true));
     }
 
+    /**
+     * Admin-only hard delete of a passenger account (used to clean up test
+     * registrations). Removes the user's bookings (and their payment/ticket
+     * rows) first to satisfy the foreign keys.
+     */
+    @DeleteMapping("/passengers/{id}")
+    public ResponseEntity<?> deletePassenger(@PathVariable UUID id) {
+        if (!userRepository.existsById(id)) return ResponseEntity.notFound().build();
+        bookingRepository.findAll().stream()
+                .filter(b -> b.getUser() != null && id.equals(b.getUser().getId()))
+                .forEach(b -> {
+                    UUID bid = b.getId();
+                    paymentRepository.findAll().stream()
+                            .filter(p -> p.getBooking() != null && bid.equals(p.getBooking().getId()))
+                            .forEach(paymentRepository::delete);
+                    ticketRepository.findAll().stream()
+                            .filter(t -> t.getBooking() != null && bid.equals(t.getBooking().getId()))
+                            .forEach(ticketRepository::delete);
+                    bookingRepository.delete(b);
+                });
+        userRepository.deleteById(id);
+        return ResponseEntity.ok(Map.of("deleted", true));
+    }
+
     @GetMapping("/passengers")
     public List<Map<String, Object>> allPassengers() {
         List<Map<String, Object>> out = new ArrayList<>();
