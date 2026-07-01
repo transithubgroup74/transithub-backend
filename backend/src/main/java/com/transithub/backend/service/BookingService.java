@@ -41,7 +41,12 @@ public class BookingService {
                 .schedule(schedule)
                 .seatNumber(seatNumber)
                 .totalAmount(schedule.getRoute().getBasePrice())
-                .status("pending")
+                // The app simulates instant successful payment before creating
+                // the booking, so real-schedule bookings (e.g. admin-added
+                // schedules) are confirmed on creation — consistent with the
+                // custom/mock path. Revert to "pending" only if a real
+                // awaiting-payment flow (live Paystack) is added later.
+                .status("confirmed")
                 .qrCode(qrCode)
                 .origin(schedule.getRoute().getOrigin())
                 .destination(schedule.getRoute().getDestination())
