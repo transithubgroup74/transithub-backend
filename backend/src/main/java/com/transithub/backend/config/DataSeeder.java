@@ -8,7 +8,10 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -147,30 +150,39 @@ public class DataSeeder implements CommandLineRunner {
         LocalDate yesterday = LocalDate.now().minusDays(1);
         scheduleRepo.deleteByDepartsAtBefore(yesterday.atStartOfDay());
 
-        // Find the furthest future schedule already stored
-        LocalDate latestSeeded = scheduleRepo.findMaxDepartsAt()
-                .map(dt -> dt.toLocalDate())
-                .orElse(LocalDate.now().minusDays(1));
-
-        LocalDate target = LocalDate.now().plusDays(30);
-        if (!latestSeeded.isBefore(target)) return; // Already have 30 days ahead
+        LocalDate today  = LocalDate.now();
+        LocalDate target = today.plusDays(30);
 
         List<Bus> buses = busRepo.findAll();
         List<Route> routes = routeRepo.findAll();
         if (buses.isEmpty() || routes.isEmpty()) return;
 
-        // Build schedules from latestSeeded+1 up to 30 days ahead
-        LocalDate startDay = latestSeeded.plusDays(1);
-        for (LocalDate d = startDay; !d.isAfter(target); d = d.plusDays(1)) {
-            for (Route route : routes) {
-                List<Bus> operatorBuses = buses.stream()
-                        .filter(b -> b.getOperator().getId().equals(route.getOperator().getId()))
-                        .toList();
-                if (operatorBuses.isEmpty()) continue;
+        // Furthest scheduled day PER ROUTE — so newly-added routes (which have
+        // none yet) get filled in even when other routes already reach 30 days
+        // ahead. Existing routes are idempotent (their startDay lands past the
+        // target, so nothing is regenerated).
+        Map<UUID, LocalDate> latestByRoute = new HashMap<>();
+        for (Schedule s : scheduleRepo.findAll()) {
+            if (s.getRoute() == null || s.getDepartsAt() == null) continue;
+            UUID rid = s.getRoute().getId();
+            LocalDate d = s.getDepartsAt().toLocalDate();
+            latestByRoute.merge(rid, d, (a, b) -> a.isAfter(b) ? a : b);
+        }
 
-                Bus bus1 = operatorBuses.get(0);
-                Bus bus2 = operatorBuses.size() > 1 ? operatorBuses.get(1) : bus1;
+        for (Route route : routes) {
+            if (route.getOperator() == null) continue;
+            List<Bus> operatorBuses = buses.stream()
+                    .filter(b -> b.getOperator() != null
+                            && b.getOperator().getId().equals(route.getOperator().getId()))
+                    .toList();
+            if (operatorBuses.isEmpty()) continue;
 
+            Bus bus1 = operatorBuses.get(0);
+            Bus bus2 = operatorBuses.size() > 1 ? operatorBuses.get(1) : bus1;
+
+            LocalDate latest = latestByRoute.get(route.getId());
+            LocalDate startDay = (latest == null) ? today : latest.plusDays(1);
+            for (LocalDate d = startDay; !d.isAfter(target); d = d.plusDays(1)) {
                 scheduleRepo.save(Schedule.builder().route(route).bus(bus1).departsAt(d.atTime(6, 0)).build());
                 scheduleRepo.save(Schedule.builder().route(route).bus(bus2).departsAt(d.atTime(10, 0)).build());
                 scheduleRepo.save(Schedule.builder().route(route).bus(bus1).departsAt(d.atTime(14, 0)).build());
@@ -178,6 +190,6 @@ public class DataSeeder implements CommandLineRunner {
             }
         }
 
-        System.out.println("TransitHub: Schedules refreshed up to " + target);
+        System.out.println("TransitHub: Schedules refreshed per-route up to " + target);
     }
 }
