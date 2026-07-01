@@ -31,7 +31,37 @@ public class DataSeeder implements CommandLineRunner {
         if (driverRepo.count() == 0) {
             seedDrivers();
         }
+        seedExtraOperators();
         refreshSchedules();
+    }
+
+    // Adds the two remaining companies that have staff accounts in the dashboard
+    // but were missing from the backend seed — so per-company scoping shows real
+    // routes/buses/drivers/schedules for their operators. Guarded per-company so
+    // it also runs safely on the already-seeded production DB.
+    private void seedExtraOperators() {
+        if (findOperator("Night Rider Express") == null) {
+            Operator nr = operatorRepo.save(Operator.builder()
+                    .companyName("Night Rider Express").email("nightrider@transithub.com")
+                    .passwordHash("seeded").plan("premium").momoAccount("0244000005").build());
+            busRepo.save(Bus.builder().operator(nr).plateNumber("GN-3100-24").capacity(45).model("Night Rider Executive").status("active").build());
+            busRepo.save(Bus.builder().operator(nr).plateNumber("GN-3200-24").capacity(60).model("Night Rider Regular").status("active").build());
+            driverRepo.save(Driver.builder().operator(nr).name("Yusuf Alhassan").phone("0244111207").licenseNumber("GHA-DL-2207").status("active").build());
+            driverRepo.save(Driver.builder().operator(nr).name("Mary Adjeiwaa").phone("0244111208").licenseNumber("GHA-DL-2208").status("active").build());
+            routeRepo.save(Route.builder().operator(nr).origin("Accra").destination("Kumasi").basePrice(new BigDecimal("90")).build());
+            routeRepo.save(Route.builder().operator(nr).origin("Accra").destination("Tamale").basePrice(new BigDecimal("130")).build());
+        }
+        if (findOperator("Metro Mass Transit") == null) {
+            Operator mm = operatorRepo.save(Operator.builder()
+                    .companyName("Metro Mass Transit").email("metromass@transithub.com")
+                    .passwordHash("seeded").plan("starter").momoAccount("0244000006").build());
+            busRepo.save(Bus.builder().operator(mm).plateNumber("GM-4100-19").capacity(70).model("Metro Standard").status("active").build());
+            busRepo.save(Bus.builder().operator(mm).plateNumber("GM-4200-19").capacity(70).model("Metro Standard").status("active").build());
+            driverRepo.save(Driver.builder().operator(mm).name("Emmanuel Nkrumah").phone("0244111209").licenseNumber("GHA-DL-2209").status("active").build());
+            driverRepo.save(Driver.builder().operator(mm).name("Comfort Danso").phone("0244111210").licenseNumber("GHA-DL-2210").status("off-duty").build());
+            routeRepo.save(Route.builder().operator(mm).origin("Accra").destination("Cape Coast").basePrice(new BigDecimal("55")).build());
+            routeRepo.save(Route.builder().operator(mm).origin("Accra").destination("Koforidua").basePrice(new BigDecimal("40")).build());
+        }
     }
 
     // Existing buses pre-date the `status` column — default them to "active".
