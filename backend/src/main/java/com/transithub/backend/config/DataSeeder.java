@@ -36,7 +36,60 @@ public class DataSeeder implements CommandLineRunner {
         }
         seedExtraOperators();
         ensureFleetSize();
+        ensureRouteCoverage();
         refreshSchedules();
+    }
+
+    // Candidate intercity routes (origin, destination, base price in GHS) used to
+    // top up each operator's route list. Both directions of the major corridors.
+    private static final Object[][] ROUTE_POOL = {
+            {"Accra", "Kumasi", 80}, {"Kumasi", "Accra", 80},
+            {"Accra", "Takoradi", 70}, {"Takoradi", "Accra", 70},
+            {"Accra", "Cape Coast", 55}, {"Cape Coast", "Accra", 55},
+            {"Accra", "Tamale", 130}, {"Tamale", "Accra", 130},
+            {"Accra", "Ho", 60}, {"Ho", "Accra", 60},
+            {"Accra", "Koforidua", 40}, {"Koforidua", "Accra", 40},
+            {"Accra", "Sunyani", 110}, {"Sunyani", "Accra", 110},
+            {"Kumasi", "Takoradi", 90}, {"Takoradi", "Kumasi", 90},
+            {"Kumasi", "Tamale", 100}, {"Tamale", "Kumasi", 100},
+            {"Kumasi", "Sunyani", 50}, {"Sunyani", "Kumasi", 50},
+            {"Accra", "Bolgatanga", 150}, {"Accra", "Wa", 160},
+            {"Kumasi", "Cape Coast", 85}, {"Takoradi", "Cape Coast", 35}
+    };
+
+    // Brings every operator up to a fuller route list. Idempotent: only adds
+    // routes a company doesn't already have, up to the target. New routes get
+    // timetables automatically via refreshSchedules() (which runs next).
+    private void ensureRouteCoverage() {
+        final int TARGET = 6;
+        List<Route> allRoutes = routeRepo.findAll();
+        List<Operator> operators = operatorRepo.findAll();
+        int poolLen = ROUTE_POOL.length;
+        int added = 0;
+
+        for (int k = 0; k < operators.size(); k++) {
+            Operator op = operators.get(k);
+            java.util.Set<String> have = new java.util.HashSet<>();
+            for (Route r : allRoutes) {
+                if (r.getOperator() != null && r.getOperator().getId().equals(op.getId())) {
+                    have.add(r.getOrigin() + "|" + r.getDestination());
+                }
+            }
+            int count = have.size();
+            int start = (k * 5) % poolLen; // rotate so companies don't all get identical lists
+            for (int j = 0; j < poolLen && count < TARGET; j++) {
+                Object[] pr = ROUTE_POOL[(start + j) % poolLen];
+                String o = (String) pr[0], d = (String) pr[1];
+                String key = o + "|" + d;
+                if (have.contains(key)) continue;
+                routeRepo.save(Route.builder().operator(op).origin(o).destination(d)
+                        .basePrice(new BigDecimal(String.valueOf(pr[2]))).build());
+                have.add(key);
+                count++;
+                added++;
+            }
+        }
+        if (added > 0) System.out.println("TransitHub: Routes topped up (+" + added + " routes).");
     }
 
     // A pool of Ghanaian names for topping up the driver roster (kept distinct
