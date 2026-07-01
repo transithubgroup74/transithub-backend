@@ -35,7 +35,61 @@ public class DataSeeder implements CommandLineRunner {
             seedDrivers();
         }
         seedExtraOperators();
+        ensureFleetSize();
         refreshSchedules();
+    }
+
+    // A pool of Ghanaian names for topping up the driver roster (kept distinct
+    // from the hand-seeded drivers above).
+    private static final String[] DRIVER_NAMES = {
+            "Kofi Adjei", "Ama Boakye", "Yaw Nyarko", "Akua Bonsu", "Kwesi Amankwah",
+            "Abena Ofosu", "Kojo Wiredu", "Adwoa Yeboah", "Kwabena Osei", "Efua Acheampong",
+            "Kwame Twum", "Akosua Larbi", "Fiifi Ansah", "Adjoa Kyei", "Ebo Mensa",
+            "Esi Duah", "Yaw Opoku", "Ama Gyamfua", "Kojo Bediako", "Abena Aning",
+            "Kwesi Nartey", "Adwoa Fosu", "Kofi Agyeman", "Akua Sekyere"
+    };
+
+    // Brings every operator up to a fuller fleet so the Buses/Drivers pages
+    // (and each operator's scoped view) look realistic. Idempotent: only tops
+    // up companies that are below target, so restarts add nothing.
+    private void ensureFleetSize() {
+        final int TARGET_BUSES = 5;
+        final int TARGET_DRIVERS = 5;
+        List<Bus> allBuses = busRepo.findAll();
+        List<Driver> allDrivers = driverRepo.findAll();
+        int busBase = allBuses.size();
+        int drvBase = allDrivers.size();
+        int newBuses = 0, newDrivers = 0;
+
+        for (Operator op : operatorRepo.findAll()) {
+            long busCount = allBuses.stream()
+                    .filter(b -> b.getOperator() != null && b.getOperator().getId().equals(op.getId())).count();
+            long drvCount = allDrivers.stream()
+                    .filter(d -> d.getOperator() != null && d.getOperator().getId().equals(op.getId())).count();
+            String shortName = op.getCompanyName().split(" ")[0];
+
+            for (long i = busCount; i < TARGET_BUSES; i++) {
+                int cap = (newBuses % 2 == 0) ? 45 : 60;
+                busRepo.save(Bus.builder().operator(op)
+                        .plateNumber("GH-" + (5000 + busBase + newBuses) + "-24")
+                        .capacity(cap)
+                        .model(shortName + (cap == 45 ? " Executive" : " Regular"))
+                        .status("active").build());
+                newBuses++;
+            }
+            for (long i = drvCount; i < TARGET_DRIVERS; i++) {
+                int idx = drvBase + newDrivers;
+                driverRepo.save(Driver.builder().operator(op)
+                        .name(DRIVER_NAMES[idx % DRIVER_NAMES.length])
+                        .phone(String.format("024%07d", 3000000 + idx))
+                        .licenseNumber(String.format("GHA-DL-%04d", 3000 + idx))
+                        .status((newDrivers % 5 == 4) ? "off-duty" : "active").build());
+                newDrivers++;
+            }
+        }
+        if (newBuses > 0 || newDrivers > 0) {
+            System.out.println("TransitHub: Fleet topped up (+" + newBuses + " buses, +" + newDrivers + " drivers).");
+        }
     }
 
     // Adds the two remaining companies that have staff accounts in the dashboard
