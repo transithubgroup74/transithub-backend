@@ -22,6 +22,8 @@ public class DataSeeder implements CommandLineRunner {
     private final RouteRepository routeRepo;
     private final ScheduleRepository scheduleRepo;
     private final DriverRepository driverRepo;
+    private final StaffRepository staffRepo;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
@@ -37,7 +39,40 @@ public class DataSeeder implements CommandLineRunner {
         seedExtraOperators();
         ensureFleetSize();
         ensureRouteCoverage();
+        if (staffRepo.count() == 0) {
+            seedStaff();
+        }
         refreshSchedules();
+    }
+
+    // The 14 dashboard staff accounts, now server-side with bcrypt-hashed
+    // passwords (same IDs/passwords staff already use). Guarded so it seeds
+    // once — also on the already-populated production DB.
+    private void seedStaff() {
+        String[][] rows = {
+                // staffId, name, email, role, company, password
+                {"HQ-AD-01",  "Kwame Mensah",    "admin@transithub.com",        "Super Admin", "TransitHub HQ",       "admin123"},
+                {"HQ-MG-02",  "Sarah Owusu",     "sarah@transithub.com",        "Manager",     "TransitHub HQ",       "sarah2025"},
+                {"VIP-OP-03", "Ben Quartey",     "ben@vipjeoun.com",            "Operator",    "VIP Jeoun",           "ben2025"},
+                {"VIP-CN-04", "Emmanuel Asare",  "emmanuel@vipjeoun.com",       "Conductor",   "VIP Jeoun",           "emma2025"},
+                {"OA-OP-05",  "Yaw Darko",       "yaw@oaexpress.com",           "Operator",    "OA Express",          "yaw2025"},
+                {"OA-CN-06",  "Kojo Antwi",      "kojo@oaexpress.com",          "Conductor",   "OA Express",          "kojo2025"},
+                {"STC-OP-07", "Grace Appiah",    "grace@stc.com.gh",            "Operator",    "STC Coaches",         "grace2025"},
+                {"STC-CN-08", "Akosua Frimpong", "akosua@stc.com.gh",           "Conductor",   "STC Coaches",         "akosua2025"},
+                {"KGD-OP-09", "Daniel Owusu",    "daniel@kingdomtransport.com", "Operator",    "Kingdom Transport",   "daniel2025"},
+                {"KGD-CN-10", "Esi Boateng",     "esi@kingdomtransport.com",    "Conductor",   "Kingdom Transport",   "esi2025"},
+                {"NR-OP-11",  "Samuel Adjei",    "samuel@nightrider.com",       "Operator",    "Night Rider Express", "samuel2025"},
+                {"NR-CN-12",  "Comfort Agyei",   "comfort@nightrider.com",      "Conductor",   "Night Rider Express", "comfort2025"},
+                {"MMT-OP-13", "Joseph Tetteh",   "joseph@metromass.gov.gh",     "Operator",    "Metro Mass Transit",  "joseph2025"},
+                {"MMT-CN-14", "Joyce Adu",       "joyce@metromass.gov.gh",      "Conductor",   "Metro Mass Transit",  "joyce2025"},
+        };
+        for (String[] r : rows) {
+            staffRepo.save(Staff.builder()
+                    .staffId(r[0]).name(r[1]).email(r[2]).role(r[3]).company(r[4])
+                    .passwordHash(passwordEncoder.encode(r[5]))
+                    .status("active").build());
+        }
+        System.out.println("TransitHub: Staff accounts seeded.");
     }
 
     // Candidate intercity routes (origin, destination, base price in GHS) used to
