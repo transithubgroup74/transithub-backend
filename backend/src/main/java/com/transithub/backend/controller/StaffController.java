@@ -4,6 +4,7 @@ import com.transithub.backend.config.JwtUtil;
 import com.transithub.backend.model.Staff;
 import com.transithub.backend.repository.StaffRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -56,6 +57,27 @@ public class StaffController {
         out.put("role", s.getRole());
         out.put("company", s.getCompany());
         return ResponseEntity.ok(out);
+    }
+
+    // The logged-in staff updates their own profile (name / email / password).
+    @PutMapping("/me")
+    public ResponseEntity<?> updateMe(@RequestBody Map<String, Object> body, Authentication authentication) {
+        Staff s = staffRepository.findByStaffId(authentication.getName()).orElse(null);
+        if (s == null) return ResponseEntity.status(404).body(Map.of("error", "Staff not found"));
+        if (body.get("name") != null) s.setName(str(body.get("name")));
+        if (body.get("email") != null) s.setEmail(str(body.get("email")));
+        Object pw = body.get("password");
+        if (pw != null && !String.valueOf(pw).isBlank()) {
+            s.setPasswordHash(passwordEncoder.encode(String.valueOf(pw)));
+        }
+        staffRepository.save(s);
+        Map<String, Object> m = new HashMap<>();
+        m.put("staffId", s.getStaffId());
+        m.put("name", s.getName());
+        m.put("email", s.getEmail());
+        m.put("role", s.getRole());
+        m.put("company", s.getCompany());
+        return ResponseEntity.ok(m);
     }
 
     // Staff-only list for the dashboard's Staff & Roles page. No password hash.

@@ -33,7 +33,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/alerts").permitAll()
                         // ── Staff only: all admin data (PII), fleet, and every write ──
                         .requestMatchers("/api/admin/**").hasAuthority("STAFF")
-                        .requestMatchers("/api/staff").hasAuthority("STAFF")
+                        .requestMatchers("/api/staff", "/api/staff/**").hasAuthority("STAFF")
                         .requestMatchers("/api/buses", "/api/buses/**").hasAuthority("STAFF")
                         .requestMatchers("/api/drivers", "/api/drivers/**").hasAuthority("STAFF")
                         .requestMatchers("/api/operators", "/api/operators/**").hasAuthority("STAFF")
