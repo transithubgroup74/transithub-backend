@@ -100,6 +100,17 @@ public class BookingService {
         return bookingRepository.findByUser(user);
     }
 
+    // Seat numbers already taken on a schedule (excludes cancelled), so two
+    // passengers can't book the same seat on the same bus.
+    public List<Integer> getBookedSeats(UUID scheduleId) {
+        return bookingRepository.findBySchedule_Id(scheduleId).stream()
+                .filter(b -> !"cancelled".equalsIgnoreCase(b.getStatus()))
+                .map(Booking::getSeatNumber)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
     public Optional<Booking> getBookingById(UUID id, String userEmail) {
         return bookingRepository.findById(id)
                 .filter(b -> b.getUser().getEmail().equals(userEmail));

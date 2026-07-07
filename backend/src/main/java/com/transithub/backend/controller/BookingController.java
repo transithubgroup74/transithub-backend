@@ -69,6 +69,14 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.getUserBookings(email));
     }
 
+    // Seat numbers already taken on a schedule (so the seat picker greys them
+    // out). Excludes cancelled bookings.
+    @GetMapping("/seats/{scheduleId}")
+    public ResponseEntity<List<Integer>> bookedSeats(@PathVariable UUID scheduleId) {
+        List<Integer> seats = bookingService.getBookedSeats(scheduleId);
+        return ResponseEntity.ok(seats);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Booking> getBookingById(@PathVariable UUID id, Authentication authentication) {
         return bookingService.getBookingById(id, authentication.getName())
