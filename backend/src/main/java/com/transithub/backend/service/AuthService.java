@@ -30,6 +30,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
+    private final EmailAddressValidator emailAddressValidator;
 
     @org.springframework.beans.factory.annotation.Value("${app.require-email-verification:false}")
     private boolean requireEmailVerification;
@@ -38,12 +39,14 @@ public class AuthService {
                        OperatorRepository operatorRepository,
                        PasswordEncoder passwordEncoder,
                        JwtUtil jwtUtil,
-                       EmailService emailService) {
+                       EmailService emailService,
+                       EmailAddressValidator emailAddressValidator) {
         this.userRepository = userRepository;
         this.operatorRepository = operatorRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.emailService = emailService;
+        this.emailAddressValidator = emailAddressValidator;
     }
 
     /**
@@ -56,6 +59,16 @@ public class AuthService {
 
         if (!EMAIL_RE.matcher(email).matches()) {
             throw new ApiException(400, "invalid_email", "That doesn't look like a valid email address.");
+        }
+
+        String domain = email.substring(email.indexOf('@') + 1);
+        if (emailAddressValidator.isDisposable(domain)) {
+            throw new ApiException(400, "disposable_email",
+                    "Please use a permanent email address, not a temporary one.");
+        }
+        if (!emailAddressValidator.domainCanReceiveMail(domain)) {
+            throw new ApiException(400, "unknown_domain",
+                    "We couldn't find an email service at \"" + domain + "\". Please check the spelling.");
         }
         if (request.getPassword() == null || request.getPassword().length() < 8) {
             throw new ApiException(400, "weak_password", "Password must be at least 8 characters.");
