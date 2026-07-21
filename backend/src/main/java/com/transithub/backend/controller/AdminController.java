@@ -132,6 +132,16 @@ public class AdminController {
     public List<Map<String, Object>> schedules() {
         List<Map<String, Object>> out = new ArrayList<>();
         java.time.LocalDate today = java.time.LocalDate.now();
+
+        // Seats sold per schedule, counted once up front rather than querying
+        // per row — the timetable runs to hundreds of entries.
+        Map<UUID, Long> soldPerSchedule = new HashMap<>();
+        for (Booking b : bookingRepository.findAll()) {
+            if (b.getSchedule() == null) continue;
+            if ("cancelled".equalsIgnoreCase(b.getStatus())) continue;
+            soldPerSchedule.merge(b.getSchedule().getId(), 1L, Long::sum);
+        }
+
         for (Schedule s : scheduleRepository.findAll()) {
             // Upcoming only — keep all of today plus future days, hide past ones
             // so the timetable is forward-looking (soonest first once sorted).
@@ -147,6 +157,15 @@ public class AdminController {
             m.put("status", s.getStatus());
             m.put("source", s.getSource());
             m.put("busClass", (model != null && model.toLowerCase().contains("exec")) ? "Executive" : "Regular");
+            // Vehicle load — lets the dashboard show how full each bus is and
+            // flag the ones close to selling out.
+            Integer capacity = s.getBus() != null ? s.getBus().getCapacity() : null;
+            long sold = soldPerSchedule.getOrDefault(s.getId(), 0L);
+            m.put("capacity", capacity);
+            m.put("seatsBooked", sold);
+            m.put("plateNumber", s.getBus() != null ? s.getBus().getPlateNumber() : null);
+            m.put("driverName", (s.getBus() != null && s.getBus().getDriver() != null)
+                    ? s.getBus().getDriver().getName() : null);
             out.add(m);
         }
         out.sort((a, c) -> String.valueOf(a.get("departsAt")).compareTo(String.valueOf(c.get("departsAt"))));

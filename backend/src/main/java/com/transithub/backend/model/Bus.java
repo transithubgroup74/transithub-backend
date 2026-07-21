@@ -20,6 +20,11 @@ public class Bus {
     @JoinColumn(name = "operator_id")
     private Operator operator;
 
+    // The driver currently assigned to this bus. Null until an operator
+    // assigns one from the dashboard.
+    @ManyToOne
+    private Driver driver;
+
     private String plateNumber;
 
     private Integer capacity;
