@@ -2,8 +2,11 @@ package com.transithub.backend.controller;
 
 import com.transithub.backend.model.Operator;
 import com.transithub.backend.model.Route;
+import com.transithub.backend.model.Schedule;
+import com.transithub.backend.repository.BookingRepository;
 import com.transithub.backend.repository.OperatorRepository;
 import com.transithub.backend.repository.RouteRepository;
+import com.transithub.backend.repository.ScheduleRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,10 +21,17 @@ public class RouteController {
 
     private final RouteRepository routeRepository;
     private final OperatorRepository operatorRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final BookingRepository bookingRepository;
 
-    public RouteController(RouteRepository routeRepository, OperatorRepository operatorRepository) {
+    public RouteController(RouteRepository routeRepository,
+                           OperatorRepository operatorRepository,
+                           ScheduleRepository scheduleRepository,
+                           BookingRepository bookingRepository) {
         this.routeRepository = routeRepository;
         this.operatorRepository = operatorRepository;
+        this.scheduleRepository = scheduleRepository;
+        this.bookingRepository = bookingRepository;
     }
 
     @GetMapping
@@ -73,10 +83,32 @@ public class RouteController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Removes the route and the timetable generated for it. Schedules are
+     * regenerated daily so clearing them costs nothing, but a booking is real —
+     * if any passenger holds one, refuse rather than delete out from under them
+     * (the foreign key would reject it anyway, with a far worse message).
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteRoute(@PathVariable UUID id) {
         if (!routeRepository.existsById(id)) return ResponseEntity.notFound().build();
+
+        List<Schedule> schedules = scheduleRepository.findAll().stream()
+                .filter(s -> s.getRoute() != null && id.equals(s.getRoute().getId()))
+                .toList();
+
+        long booked = schedules.stream()
+                .flatMap(s -> bookingRepository.findBySchedule_Id(s.getId()).stream())
+                .filter(b -> !"cancelled".equalsIgnoreCase(b.getStatus()))
+                .count();
+        if (booked > 0) {
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    booked + (booked == 1 ? " booking exists" : " bookings exist")
+                            + " on this route — cancel them first"));
+        }
+
+        scheduleRepository.deleteAll(schedules);
         routeRepository.deleteById(id);
-        return ResponseEntity.ok(Map.of("deleted", true));
+        return ResponseEntity.ok(Map.of("deleted", true, "schedulesRemoved", schedules.size()));
     }
 }

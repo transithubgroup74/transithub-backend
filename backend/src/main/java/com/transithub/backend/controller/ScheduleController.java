@@ -3,6 +3,7 @@ package com.transithub.backend.controller;
 import com.transithub.backend.model.Bus;
 import com.transithub.backend.model.Route;
 import com.transithub.backend.model.Schedule;
+import com.transithub.backend.repository.BookingRepository;
 import com.transithub.backend.repository.BusRepository;
 import com.transithub.backend.repository.RouteRepository;
 import com.transithub.backend.repository.ScheduleRepository;
@@ -22,13 +23,16 @@ public class ScheduleController {
     private final ScheduleRepository scheduleRepository;
     private final RouteRepository routeRepository;
     private final BusRepository busRepository;
+    private final BookingRepository bookingRepository;
 
     public ScheduleController(ScheduleRepository scheduleRepository,
                               RouteRepository routeRepository,
-                              BusRepository busRepository) {
+                              BusRepository busRepository,
+                              BookingRepository bookingRepository) {
         this.scheduleRepository = scheduleRepository;
         this.routeRepository = routeRepository;
         this.busRepository = busRepository;
+        this.bookingRepository = bookingRepository;
     }
 
     // Admin: create a schedule. Body: { routeId, departsAt, busId? }
@@ -69,6 +73,18 @@ public class ScheduleController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteSchedule(@PathVariable UUID id) {
         if (!scheduleRepository.existsById(id)) return ResponseEntity.notFound().build();
+
+        // Bookings reference the schedule, so deleting one out from under a
+        // passenger would fail on the foreign key anyway — say why instead.
+        long booked = bookingRepository.findBySchedule_Id(id).stream()
+                .filter(b -> !"cancelled".equalsIgnoreCase(b.getStatus()))
+                .count();
+        if (booked > 0) {
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    booked + (booked == 1 ? " passenger has" : " passengers have")
+                            + " booked this trip — cancel those bookings first"));
+        }
+
         scheduleRepository.deleteById(id);
         return ResponseEntity.ok(Map.of("deleted", true));
     }
