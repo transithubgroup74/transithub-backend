@@ -31,6 +31,9 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
 
+    @org.springframework.beans.factory.annotation.Value("${app.require-email-verification:false}")
+    private boolean requireEmailVerification;
+
     public AuthService(UserRepository userRepository,
                        OperatorRepository operatorRepository,
                        PasswordEncoder passwordEncoder,
@@ -74,8 +77,19 @@ public class AuthService {
         user.setName(request.getName());
         user.setPhone(request.getPhone());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setEmailVerified(false);
 
+        if (!requireEmailVerification) {
+            // Codes aren't deliverable yet, so don't strand people behind a
+            // screen waiting for one. Everything else about the account is
+            // unchanged — only the inbox-ownership check is skipped.
+            user.setEmailVerified(true);
+            user.setVerificationCode(null);
+            user.setVerificationExpiry(null);
+            userRepository.save(user);
+            return tokenBody(issueToken(user));
+        }
+
+        user.setEmailVerified(false);
         String code = newCode();
         user.setVerificationCode(code);
         user.setVerificationExpiry(LocalDateTime.now().plusMinutes(CODE_TTL_MINUTES));
@@ -145,7 +159,7 @@ public class AuthService {
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new ApiException(401, "bad_credentials", "Incorrect email or password.");
         }
-        if (isUnverified(user)) {
+        if (requireEmailVerification && isUnverified(user)) {
             throw new ApiException(403, "email_unverified",
                     "Please verify your email before logging in.");
         }
@@ -219,6 +233,19 @@ public class AuthService {
             throw new ApiException(503, "email_failed",
                     "We couldn't send the code to that address. Check the email and try again.");
         }
+    }
+
+    /** Same fields the app reads off a login, so it can sign in immediately. */
+    private Map<String, Object> tokenBody(TokenResponse t) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", "registered");
+        body.put("token", t.getToken());
+        body.put("email", t.getEmail());
+        body.put("role", t.getRole());
+        body.put("name", t.getName());
+        body.put("phone", t.getPhone());
+        body.put("photoUrl", t.getPhotoUrl());
+        return body;
     }
 
     private TokenResponse issueToken(User user) {
