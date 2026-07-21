@@ -49,6 +49,51 @@ public class EmailService {
         }
     }
 
+    /**
+     * Unlike sendReceipt, this one throws on failure — if the code never
+     * reaches the inbox the user can't finish signing up, so the caller has to
+     * know rather than leave them stuck on the verify screen.
+     */
+    public void sendVerificationCode(String to, String name, String code) {
+        if (fromEmail == null || fromEmail.isBlank()) {
+            throw new IllegalStateException("Mail is not configured (MAIL_USERNAME / MAIL_PASSWORD)");
+        }
+        try {
+            MimeMessage msg = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(msg, false, "UTF-8");
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(code + " is your TransitHub verification code");
+            helper.setText(buildCodeHtml(name, code), true);
+            mailSender.send(msg);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not send verification email: " + e.getMessage(), e);
+        }
+    }
+
+    private String buildCodeHtml(String name, String code) {
+        String greeting = (name == null || name.isBlank()) ? "Hi there" : "Hi " + name.split(" ")[0];
+        return """
+            <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#020E1A;color:#fff;border-radius:12px;overflow:hidden;">
+              <div style="background:#C9A84C;padding:20px;text-align:center;">
+                <h1 style="margin:0;color:#020E1A;font-size:22px;">TransitHub</h1>
+                <p style="margin:4px 0 0;color:#020E1A;font-size:13px;">Verify your email</p>
+              </div>
+              <div style="padding:24px;">
+                <p style="margin:0 0 16px;font-size:15px;color:#fff;">%s,</p>
+                <p style="margin:0 0 20px;font-size:14px;color:#a0aec0;">Enter this code in the app to finish creating your account:</p>
+                <div style="background:#1B3A6B;border-radius:8px;padding:20px;text-align:center;margin-bottom:20px;">
+                  <span style="font-size:34px;letter-spacing:10px;color:#C9A84C;font-weight:bold;font-family:monospace;">%s</span>
+                </div>
+                <p style="margin:0 0 8px;font-size:13px;color:#a0aec0;">This code expires in 15 minutes.</p>
+                <p style="margin:0;font-size:13px;color:#a0aec0;">If you didn't sign up for TransitHub, you can ignore this email.</p>
+                <div style="border-top:1px dashed #1B3A6B;margin:20px 0;"></div>
+                <p style="color:#a0aec0;font-size:12px;text-align:center;margin:0;">Safe travels from the TransitHub team! 🚌</p>
+              </div>
+            </div>
+            """.formatted(greeting, code);
+    }
+
     private String buildHtml(String from, String to, String dep, String seat, String amount, String ref) {
         return """
             <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#020E1A;color:#fff;border-radius:12px;overflow:hidden;">

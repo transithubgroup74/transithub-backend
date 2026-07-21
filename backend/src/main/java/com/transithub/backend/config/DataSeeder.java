@@ -23,6 +23,7 @@ public class DataSeeder implements CommandLineRunner {
     private final ScheduleRepository scheduleRepo;
     private final DriverRepository driverRepo;
     private final StaffRepository staffRepo;
+    private final UserRepository userRepo;
     private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     @Override
@@ -32,6 +33,7 @@ public class DataSeeder implements CommandLineRunner {
         }
         // Independent guards so these also populate on an already-seeded DB
         // (the production DB already has operators, so seedStaticData is skipped).
+        backfillEmailVerified();
         backfillBusStatus();
         if (driverRepo.count() == 0) {
             seedDrivers();
@@ -43,6 +45,19 @@ public class DataSeeder implements CommandLineRunner {
             seedStaff();
         }
         refreshSchedules();
+    }
+
+    // Accounts that existed before email verification was added come back from
+    // the DB with a NULL flag. Grandfather them in as verified — otherwise the
+    // real passengers would be locked out of accounts they already use.
+    private void backfillEmailVerified() {
+        List<User> legacy = userRepo.findAll().stream()
+                .filter(u -> u.getEmailVerified() == null)
+                .toList();
+        if (legacy.isEmpty()) return;
+        legacy.forEach(u -> u.setEmailVerified(true));
+        userRepo.saveAll(legacy);
+        System.out.println("TransitHub: grandfathered " + legacy.size() + " existing account(s) as verified");
     }
 
     // The 14 dashboard staff accounts, now server-side with bcrypt-hashed

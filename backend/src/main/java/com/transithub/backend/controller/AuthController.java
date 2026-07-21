@@ -5,6 +5,8 @@ import com.transithub.backend.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -15,9 +17,21 @@ public class AuthController {
         this.authService = authService;
     }
 
+    /** Creates the account unverified and emails a code — no token yet. */
     @PostMapping("/register")
-    public ResponseEntity<TokenResponse> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<Map<String, Object>> register(@RequestBody RegisterRequest request) {
         return ResponseEntity.ok(authService.register(request));
+    }
+
+    /** Exchanges a valid emailed code for a token. */
+    @PostMapping("/verify")
+    public ResponseEntity<TokenResponse> verify(@RequestBody VerifyRequest request) {
+        return ResponseEntity.ok(authService.verifyEmail(request));
+    }
+
+    @PostMapping("/resend-code")
+    public ResponseEntity<Map<String, Object>> resendCode(@RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(authService.resendCode(body.get("email")));
     }
 
     @PostMapping("/login")

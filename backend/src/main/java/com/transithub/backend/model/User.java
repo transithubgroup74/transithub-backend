@@ -30,6 +30,14 @@ public class User {
     @Column(columnDefinition = "TEXT")
     private String photoUrl;
 
+    // NULL means the account predates email verification — those are
+    // grandfathered in by DataSeeder so existing passengers aren't locked out.
+    // FALSE = signed up but hasn't entered the emailed code yet.
+    private Boolean emailVerified;
+
+    private String verificationCode;
+    private LocalDateTime verificationExpiry;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
