@@ -33,6 +33,7 @@ public class Staff {
 
     private String company;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String passwordHash;
 
     @Builder.Default

@@ -22,6 +22,7 @@ public class Operator {
     @Column(unique = true)
     private String email;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String passwordHash;
 
     @Builder.Default

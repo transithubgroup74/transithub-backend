@@ -23,6 +23,10 @@ public class User {
     private String email;
 
     private String phone;
+
+    // Never serialize the hash. Endpoints that return the Booking entity pull
+    // the User in with it, which was putting bcrypt hashes in API responses.
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String passwordHash;
     private String fcmToken;
     private String platform;
