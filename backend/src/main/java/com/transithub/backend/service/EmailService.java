@@ -8,19 +8,39 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import jakarta.mail.internet.MimeMessage;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 
 @Service
 @RequiredArgsConstructor
 public class EmailService {
 
+    private static final String BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
+
     private final JavaMailSender mailSender;
 
-    @Value("${spring.mail.username:}")
+    // Railway blocks outbound SMTP (both 587 and 465 time out), so mail goes
+    // over Brevo's HTTPS API when a key is present. SMTP stays as the fallback
+    // for local runs, where it works fine.
+    @Value("${brevo.api-key:}")
+    private String brevoApiKey;
+
+    @Value("${app.mail.from:}")
     private String fromEmail;
 
+    @Value("${app.mail.from-name:TransitHub}")
+    private String fromName;
+
+    private final HttpClient http = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
+
     public void sendReceipt(Booking booking) {
-        if (fromEmail == null || fromEmail.isBlank()) return;
+        if (!isConfigured()) return;
         try {
             String to = booking.getUser().getEmail();
             String origin, destination, dep;
@@ -37,14 +57,11 @@ public class EmailService {
             String ref = booking.getId().toString().toUpperCase().substring(0, 8);
             String amount = booking.getTotalAmount().toPlainString();
 
-            MimeMessage msg = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(msg, false, "UTF-8");
-            helper.setFrom(fromEmail);
-            helper.setTo(to);
-            helper.setSubject("TransitHub Booking Confirmed – " + origin + " → " + destination);
-            helper.setText(buildHtml(origin, destination, dep, String.valueOf(booking.getSeatNumber()), amount, ref), true);
-            mailSender.send(msg);
+            send(to,
+                 "TransitHub Booking Confirmed – " + origin + " → " + destination,
+                 buildHtml(origin, destination, dep, String.valueOf(booking.getSeatNumber()), amount, ref));
         } catch (Exception e) {
+            // A receipt is a nice-to-have; never fail the booking over it.
             System.err.println("TransitHub: Failed to send receipt email – " + e.getMessage());
         }
     }
@@ -55,20 +72,86 @@ public class EmailService {
      * know rather than leave them stuck on the verify screen.
      */
     public void sendVerificationCode(String to, String name, String code) {
-        if (fromEmail == null || fromEmail.isBlank()) {
-            throw new IllegalStateException("Mail is not configured (MAIL_USERNAME / MAIL_PASSWORD)");
+        if (!isConfigured()) {
+            throw new IllegalStateException("Mail is not configured (needs BREVO_API_KEY and MAIL_FROM)");
         }
+        send(to, code + " is your TransitHub verification code", buildCodeHtml(name, code));
+    }
+
+    private boolean isConfigured() {
+        return fromEmail != null && !fromEmail.isBlank();
+    }
+
+    private void send(String to, String subject, String html) {
+        if (brevoApiKey != null && !brevoApiKey.isBlank()) {
+            sendViaBrevo(to, subject, html);
+        } else {
+            sendViaSmtp(to, subject, html);
+        }
+    }
+
+    private void sendViaBrevo(String to, String subject, String html) {
+        String payload = """
+            {"sender":{"name":"%s","email":"%s"},"to":[{"email":"%s"}],"subject":"%s","htmlContent":"%s"}
+            """.formatted(json(fromName), json(fromEmail), json(to), json(subject), json(html));
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BREVO_ENDPOINT))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("api-key", brevoApiKey)
+                    .header("content-type", "application/json")
+                    .header("accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() / 100 != 2) {
+                throw new IllegalStateException(
+                        "Brevo rejected the message (HTTP " + response.statusCode() + "): " + response.body());
+            }
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not reach Brevo: " + e.getMessage(), e);
+        }
+    }
+
+    private void sendViaSmtp(String to, String subject, String html) {
         try {
             MimeMessage msg = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(msg, false, "UTF-8");
             helper.setFrom(fromEmail);
             helper.setTo(to);
-            helper.setSubject(code + " is your TransitHub verification code");
-            helper.setText(buildCodeHtml(name, code), true);
+            helper.setSubject(subject);
+            helper.setText(html, true);
             mailSender.send(msg);
         } catch (Exception e) {
-            throw new IllegalStateException("Could not send verification email: " + e.getMessage(), e);
+            throw new IllegalStateException("Could not send over SMTP: " + e.getMessage(), e);
         }
+    }
+
+    /** Minimal JSON string escaping for the values interpolated into the payload. */
+    private String json(String raw) {
+        if (raw == null) return "";
+        StringBuilder sb = new StringBuilder(raw.length() + 16);
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            switch (c) {
+                case '"'  -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                default -> {
+                    if (c < 0x20) sb.append(String.format("\\u%04x", (int) c));
+                    else sb.append(c);
+                }
+            }
+        }
+        return sb.toString();
     }
 
     private String buildCodeHtml(String name, String code) {
