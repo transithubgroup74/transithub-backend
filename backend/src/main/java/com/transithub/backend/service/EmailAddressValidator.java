@@ -36,10 +36,13 @@ public class EmailAddressValidator {
     }
 
     /**
-     * True if the domain publishes a mail server (or at least resolves).
-     * Deliberately fails OPEN: a DNS timeout or outage must never lock a real
-     * passenger out of signing up, so only a definitive "no such domain" or a
-     * clean answer with no records counts as a rejection.
+     * True unless DNS says the domain flatly does not exist.
+     *
+     * An earlier version also required MX (or A) records to be present, which
+     * consistently rejected hotmail.com and msn.com — JNDI's DNS provider
+     * misreads their MX answers. Turning away real Microsoft users is far
+     * worse than letting a fake address through, so existence is now the only
+     * test: NXDOMAIN is a rejection, anything else is accepted.
      */
     public boolean domainCanReceiveMail(String domain) {
         Hashtable<String, String> env = new Hashtable<>();
@@ -50,17 +53,13 @@ public class EmailAddressValidator {
         try {
             DirContext ctx = new InitialDirContext(env);
             try {
-                Attributes records = ctx.getAttributes(domain, new String[]{"MX", "A"});
-                Attribute mx = records.get("MX");
-                if (mx != null && mx.size() > 0) return true;
-                // Domains without MX can still take mail on their A record.
-                Attribute a = records.get("A");
-                return a != null && a.size() > 0;
+                ctx.getAttributes(domain, new String[]{"MX"});
+                return true;   // the name resolves — good enough
             } finally {
                 ctx.close();
             }
         } catch (NameNotFoundException e) {
-            return false;  // definitive: the domain doesn't exist
+            return false;  // definitive: no such domain
         } catch (Exception e) {
             System.err.println("TransitHub: DNS check skipped for " + domain + " – " + e.getMessage());
             return true;   // transient problem — don't punish the user for it
