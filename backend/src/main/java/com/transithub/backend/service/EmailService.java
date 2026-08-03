@@ -86,7 +86,7 @@ public class EmailService {
     public void sendWelcome(String to, String name) {
         if (!isConfigured()) return;
         try {
-            send(to, "Welcome to TransitHub 🎉", buildWelcomeHtml(name));
+            send(to, "Welcome to TransitHub", buildWelcomeHtml(name));
         } catch (Exception e) {
             System.err.println("TransitHub: Failed to send welcome email – " + e.getMessage());
         }
@@ -169,28 +169,32 @@ public class EmailService {
     }
 
     private String buildWelcomeHtml(String name) {
-        String greeting = (name == null || name.isBlank()) ? "Hi there" : "Hi " + name.split(" ")[0];
+        String greeting = (name == null || name.isBlank()) ? "Hello" : "Dear " + name.split(" ")[0];
         return """
             <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#020E1A;color:#fff;border-radius:12px;overflow:hidden;">
               <div style="background:#C9A84C;padding:24px;text-align:center;">
                 <h1 style="margin:0;color:#020E1A;font-size:24px;">TransitHub</h1>
-                <p style="margin:6px 0 0;color:#020E1A;font-size:13px;">Welcome aboard!</p>
+                <p style="margin:6px 0 0;color:#020E1A;font-size:13px;">Intercity Bus Ticketing</p>
               </div>
               <div style="padding:24px;">
                 <p style="margin:0 0 16px;font-size:16px;color:#fff;">%s,</p>
                 <p style="margin:0 0 16px;font-size:14px;color:#a0aec0;line-height:1.6;">
-                  Your TransitHub account is ready. You can now book intercity bus tickets across
-                  Ghana, pick your seat, pay with Mobile Money, and carry your ticket as a QR code —
-                  all from your phone.
+                  Thank you for creating a TransitHub account. Your account has been set up
+                  successfully. You can now book intercity bus tickets across Ghana, reserve your
+                  seat, pay securely with Mobile Money, and receive your ticket as a QR code for
+                  boarding.
                 </p>
                 <div style="background:#1B3A6B;border-radius:8px;padding:16px;margin:20px 0;">
                   <p style="margin:0 0 10px;font-size:13px;color:#C9A84C;font-weight:bold;">Getting started</p>
-                  <p style="margin:0 0 6px;font-size:13px;color:#fff;">1. Search a route (e.g. Kumasi → Accra)</p>
-                  <p style="margin:0 0 6px;font-size:13px;color:#fff;">2. Pick your seat and pay</p>
-                  <p style="margin:0;font-size:13px;color:#fff;">3. Show your QR code at the station gate</p>
+                  <p style="margin:0 0 6px;font-size:13px;color:#fff;">1. Search for a route, such as Kumasi to Accra.</p>
+                  <p style="margin:0 0 6px;font-size:13px;color:#fff;">2. Select your seat and complete payment.</p>
+                  <p style="margin:0;font-size:13px;color:#fff;">3. Present your QR code at the station gate.</p>
                 </div>
+                <p style="margin:0 0 16px;font-size:13px;color:#a0aec0;line-height:1.6;">
+                  If you did not create this account, please disregard this email.
+                </p>
                 <p style="margin:0;font-size:13px;color:#a0aec0;">
-                  Safe travels,<br>The TransitHub team 🚌
+                  Regards,<br>The TransitHub Team
                 </p>
               </div>
             </div>
