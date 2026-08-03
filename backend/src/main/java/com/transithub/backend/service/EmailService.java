@@ -78,6 +78,20 @@ public class EmailService {
         send(to, code + " is your TransitHub verification code", buildCodeHtml(name, code));
     }
 
+    /**
+     * A friendly "your account is ready" email sent right after sign-up.
+     * Fire-and-forget like the receipt — a welcome message is nice to have and
+     * must never block or fail account creation.
+     */
+    public void sendWelcome(String to, String name) {
+        if (!isConfigured()) return;
+        try {
+            send(to, "Welcome to TransitHub 🎉", buildWelcomeHtml(name));
+        } catch (Exception e) {
+            System.err.println("TransitHub: Failed to send welcome email – " + e.getMessage());
+        }
+    }
+
     private boolean isConfigured() {
         return fromEmail != null && !fromEmail.isBlank();
     }
@@ -152,6 +166,35 @@ public class EmailService {
             }
         }
         return sb.toString();
+    }
+
+    private String buildWelcomeHtml(String name) {
+        String greeting = (name == null || name.isBlank()) ? "Hi there" : "Hi " + name.split(" ")[0];
+        return """
+            <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#020E1A;color:#fff;border-radius:12px;overflow:hidden;">
+              <div style="background:#C9A84C;padding:24px;text-align:center;">
+                <h1 style="margin:0;color:#020E1A;font-size:24px;">TransitHub</h1>
+                <p style="margin:6px 0 0;color:#020E1A;font-size:13px;">Welcome aboard!</p>
+              </div>
+              <div style="padding:24px;">
+                <p style="margin:0 0 16px;font-size:16px;color:#fff;">%s,</p>
+                <p style="margin:0 0 16px;font-size:14px;color:#a0aec0;line-height:1.6;">
+                  Your TransitHub account is ready. You can now book intercity bus tickets across
+                  Ghana, pick your seat, pay with Mobile Money, and carry your ticket as a QR code —
+                  all from your phone.
+                </p>
+                <div style="background:#1B3A6B;border-radius:8px;padding:16px;margin:20px 0;">
+                  <p style="margin:0 0 10px;font-size:13px;color:#C9A84C;font-weight:bold;">Getting started</p>
+                  <p style="margin:0 0 6px;font-size:13px;color:#fff;">1. Search a route (e.g. Kumasi → Accra)</p>
+                  <p style="margin:0 0 6px;font-size:13px;color:#fff;">2. Pick your seat and pay</p>
+                  <p style="margin:0;font-size:13px;color:#fff;">3. Show your QR code at the station gate</p>
+                </div>
+                <p style="margin:0;font-size:13px;color:#a0aec0;">
+                  Safe travels,<br>The TransitHub team 🚌
+                </p>
+              </div>
+            </div>
+            """.formatted(greeting);
     }
 
     private String buildCodeHtml(String name, String code) {

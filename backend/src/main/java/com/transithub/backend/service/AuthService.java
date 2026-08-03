@@ -99,6 +99,8 @@ public class AuthService {
             user.setVerificationCode(null);
             user.setVerificationExpiry(null);
             userRepository.save(user);
+            // Send a welcome email — fire-and-forget, never blocks sign-up.
+            emailService.sendWelcome(user.getEmail(), user.getName());
             return tokenBody(issueToken(user));
         }
 
@@ -140,6 +142,8 @@ public class AuthService {
         user.setVerificationCode(null);
         user.setVerificationExpiry(null);
         userRepository.save(user);
+        // Account is now real — welcome them (fire-and-forget).
+        emailService.sendWelcome(user.getEmail(), user.getName());
         return issueToken(user);
     }
 
