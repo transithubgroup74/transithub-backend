@@ -2,6 +2,7 @@ package com.transithub.backend.service;
 
 import com.transithub.backend.model.*;
 import com.transithub.backend.repository.*;
+import com.transithub.backend.exception.ApiException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -36,6 +37,13 @@ public class BookingService {
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new RuntimeException("Schedule not found"));
 
+        // Reject a seat that's already taken on this bus (real concurrency guard
+        // — two passengers can't hold the same seat).
+        if (seatNumber != null && getBookedSeats(scheduleId).contains(seatNumber)) {
+            throw new ApiException(409, "seat_taken",
+                    "Seat " + seatNumber + " has just been taken. Please choose another seat.");
+        }
+
         Booking booking = Booking.builder()
                 .user(user)
                 .schedule(schedule)
@@ -67,6 +75,14 @@ public class BookingService {
                                        String qrCode, String status) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Same seat guard for demo/mock buses (no Schedule) — a trip instance is
+        // operator + route + departure time.
+        if (seatNumber != null
+                && getCustomBookedSeats(operator, origin, destination, departsAt).contains(seatNumber)) {
+            throw new ApiException(409, "seat_taken",
+                    "Seat " + seatNumber + " has just been taken. Please choose another seat.");
+        }
 
         Booking booking = Booking.builder()
                 .user(user)
@@ -104,6 +120,20 @@ public class BookingService {
     // passengers can't book the same seat on the same bus.
     public List<Integer> getBookedSeats(UUID scheduleId) {
         return bookingRepository.findBySchedule_Id(scheduleId).stream()
+                .filter(b -> !"cancelled".equalsIgnoreCase(b.getStatus()))
+                .map(Booking::getSeatNumber)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
+    // Seats already taken on a demo/mock trip (identified by operator + route +
+    // departure), so those seats show as unavailable to other passengers too.
+    public List<Integer> getCustomBookedSeats(String operator, String origin, String destination, String departsAt) {
+        if (operator == null || departsAt == null) return List.of();
+        return bookingRepository
+                .findByOperatorAndOriginAndDestinationAndDepartsAt(operator, origin, destination, departsAt)
+                .stream()
                 .filter(b -> !"cancelled".equalsIgnoreCase(b.getStatus()))
                 .map(Booking::getSeatNumber)
                 .filter(java.util.Objects::nonNull)

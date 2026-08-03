@@ -10,4 +10,10 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     List<Booking> findByUser(User user);
     java.util.Optional<Booking> findByQrCode(String qrCode);
     List<Booking> findBySchedule_Id(UUID scheduleId);
+
+    // Custom (mock-bus) bookings don't have a Schedule, so a "trip instance" is
+    // identified by operator + route + departure time. Used to keep two
+    // passengers from taking the same seat on the same demo bus.
+    List<Booking> findByOperatorAndOriginAndDestinationAndDepartsAt(
+            String operator, String origin, String destination, String departsAt);
 }

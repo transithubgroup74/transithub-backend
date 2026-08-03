@@ -58,9 +58,23 @@ public class BookingController {
                     (String) body.get("qrCode"),
                     (String) body.get("status"));
             return ResponseEntity.ok(booking);
+        } catch (com.transithub.backend.exception.ApiException e) {
+            throw e;  // let the global handler return its status + code (e.g. seat_taken)
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    // Seats already taken on a demo/mock trip, so the picker can grey them out
+    // for mock buses too (which have no real schedule).
+    // e.g. /api/bookings/custom-seats?operator=VIP+Jeoun&origin=Kumasi&destination=Accra&departsAt=...
+    @GetMapping("/custom-seats")
+    public ResponseEntity<List<Integer>> customBookedSeats(
+            @RequestParam(required = false) String operator,
+            @RequestParam(required = false) String origin,
+            @RequestParam(required = false) String destination,
+            @RequestParam(required = false) String departsAt) {
+        return ResponseEntity.ok(bookingService.getCustomBookedSeats(operator, origin, destination, departsAt));
     }
 
     @GetMapping("/my")
