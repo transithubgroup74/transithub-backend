@@ -214,6 +214,8 @@ public class AuthService {
         m.put("email", u.getEmail());
         m.put("phone", u.getPhone());
         m.put("photoUrl", u.getPhotoUrl());
+        m.put("emgName", u.getEmgName());
+        m.put("emgPhone", u.getEmgPhone());
         return m;
     }
 
@@ -223,6 +225,8 @@ public class AuthService {
         if (body.get("name") != null) u.setName((String) body.get("name"));
         if (body.get("phone") != null) u.setPhone((String) body.get("phone"));
         if (body.get("photoUrl") != null) u.setPhotoUrl((String) body.get("photoUrl"));
+        if (body.get("emgName") != null) u.setEmgName((String) body.get("emgName"));
+        if (body.get("emgPhone") != null) u.setEmgPhone((String) body.get("emgPhone"));
         userRepository.save(u);
         return getProfile(email);
     }

@@ -116,6 +116,8 @@ public class AdminController {
             m.put("name", u.getName());
             m.put("email", u.getEmail());
             m.put("phone", u.getPhone());
+            m.put("emgName", u.getEmgName());
+            m.put("emgPhone", u.getEmgPhone());
             m.put("createdAt", u.getCreatedAt());
             m.put("trips", trips);
             out.add(m);

@@ -24,6 +24,11 @@ public class User {
 
     private String phone;
 
+    // Emergency contact the passenger sets in the app, surfaced to operators on
+    // the admin dashboard so someone can be reached on the traveller's behalf.
+    private String emgName;
+    private String emgPhone;
+
     // Never serialize the hash. Endpoints that return the Booking entity pull
     // the User in with it, which was putting bcrypt hashes in API responses.
     @com.fasterxml.jackson.annotation.JsonIgnore
