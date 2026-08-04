@@ -133,19 +133,56 @@ public class AdminController {
         List<Map<String, Object>> out = new ArrayList<>();
         java.time.LocalDate today = java.time.LocalDate.now();
 
-        // Seats sold per schedule, counted once up front rather than querying
-        // per row — the timetable runs to hundreds of entries.
+        // Split bookings: schedule-linked ones count directly; demo/mock
+        // bookings (no Schedule) are attributed to the closest matching schedule
+        // below, so real app bookings still show up as load.
         Map<UUID, Long> soldPerSchedule = new HashMap<>();
+        List<Booking> customBookings = new ArrayList<>();
         for (Booking b : bookingRepository.findAll()) {
-            if (b.getSchedule() == null) continue;
             if ("cancelled".equalsIgnoreCase(b.getStatus())) continue;
-            soldPerSchedule.merge(b.getSchedule().getId(), 1L, Long::sum);
+            if (b.getSchedule() != null) {
+                soldPerSchedule.merge(b.getSchedule().getId(), 1L, Long::sum);
+            } else {
+                customBookings.add(b);
+            }
         }
 
+        // Upcoming schedules only.
+        List<Schedule> upcoming = new ArrayList<>();
         for (Schedule s : scheduleRepository.findAll()) {
-            // Upcoming only — keep all of today plus future days, hide past ones
-            // so the timetable is forward-looking (soonest first once sorted).
             if (s.getDepartsAt() == null || s.getDepartsAt().toLocalDate().isBefore(today)) continue;
+            upcoming.add(s);
+        }
+
+        // Index schedules by operator-brand + route + date, so each demo booking
+        // can be assigned to the departure closest to its time on that trip.
+        Map<String, List<Schedule>> byTrip = new HashMap<>();
+        for (Schedule s : upcoming) {
+            Route r = s.getRoute();
+            if (r == null || r.getOperator() == null) continue;
+            String key = opBrand(r.getOperator().getCompanyName()) + "|" + r.getOrigin() + "|"
+                    + r.getDestination() + "|" + s.getDepartsAt().toLocalDate();
+            byTrip.computeIfAbsent(key, k -> new ArrayList<>()).add(s);
+        }
+
+        Map<UUID, Long> customPerSchedule = new HashMap<>();
+        for (Booking b : customBookings) {
+            int[] d = parseDeparts(b.getDepartsAt());
+            if (d == null) continue;
+            java.time.LocalDate date;
+            try { date = java.time.LocalDate.of(d[0], d[1], d[2]); } catch (Exception e) { continue; }
+            String key = opBrand(b.getOperator()) + "|" + b.getOrigin() + "|" + b.getDestination() + "|" + date;
+            List<Schedule> group = byTrip.get(key);
+            if (group == null || group.isEmpty()) continue;
+            Schedule best = null; int bestDiff = Integer.MAX_VALUE;
+            for (Schedule s : group) {
+                int diff = Math.abs(s.getDepartsAt().getHour() - d[3]);
+                if (diff < bestDiff) { bestDiff = diff; best = s; }
+            }
+            if (best != null) customPerSchedule.merge(best.getId(), 1L, Long::sum);
+        }
+
+        for (Schedule s : upcoming) {
             Route r = s.getRoute();
             String model = s.getBus() != null ? s.getBus().getModel() : null;
             Map<String, Object> m = new HashMap<>();
@@ -157,10 +194,9 @@ public class AdminController {
             m.put("status", s.getStatus());
             m.put("source", s.getSource());
             m.put("busClass", (model != null && model.toLowerCase().contains("exec")) ? "Executive" : "Regular");
-            // Vehicle load — lets the dashboard show how full each bus is and
-            // flag the ones close to selling out.
             Integer capacity = s.getBus() != null ? s.getBus().getCapacity() : null;
-            long sold = soldPerSchedule.getOrDefault(s.getId(), 0L);
+            long sold = soldPerSchedule.getOrDefault(s.getId(), 0L)
+                    + customPerSchedule.getOrDefault(s.getId(), 0L);
             m.put("capacity", capacity);
             m.put("seatsBooked", sold);
             m.put("plateNumber", s.getBus() != null ? s.getBus().getPlateNumber() : null);
@@ -171,6 +207,55 @@ public class AdminController {
         out.sort((a, c) -> String.valueOf(a.get("departsAt")).compareTo(String.valueOf(c.get("departsAt"))));
         return out;
     }
+
+    /** Leading brand word of an operator name — "VIP Jeoun Executive" and
+     *  "VIP Jeoun" both reduce to "VIP" so demo bookings match seeded schedules. */
+    private static String opBrand(String op) {
+        if (op == null) return "";
+        String t = op.trim();
+        int sp = t.indexOf(' ');
+        return (sp > 0 ? t.substring(0, sp) : t).toUpperCase();
+    }
+
+    /** Parse a booking's departsAt (display "Tue, 4 Aug 2026 06:00 AM" or ISO)
+     *  to [year, month, day, hour24], or null if it can't be read. */
+    private static int[] parseDeparts(String s) {
+        if (s == null || s.isBlank()) return null;
+        String low = s.toLowerCase();
+
+        java.util.regex.Matcher iso = java.util.regex.Pattern
+                .compile("(20\\d\\d)-(\\d{1,2})-(\\d{1,2})").matcher(low);
+        int year, month, day;
+        if (iso.find()) {
+            year = Integer.parseInt(iso.group(1));
+            month = Integer.parseInt(iso.group(2));
+            day = Integer.parseInt(iso.group(3));
+        } else {
+            java.util.regex.Matcher ym = java.util.regex.Pattern.compile("\\b(20\\d\\d)\\b").matcher(low);
+            year = ym.find() ? Integer.parseInt(ym.group(1)) : today().getYear();
+            String[] months = {"jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"};
+            month = -1;
+            for (int i = 0; i < 12; i++) if (low.contains(months[i])) { month = i + 1; break; }
+            String cleaned = low.replaceAll("\\b20\\d\\d\\b", " ")
+                    .replaceAll("\\d{1,2}:\\d{2}\\s*(am|pm)?", " ");
+            java.util.regex.Matcher dm = java.util.regex.Pattern.compile("\\b(\\d{1,2})\\b").matcher(cleaned);
+            day = dm.find() ? Integer.parseInt(dm.group(1)) : -1;
+        }
+        if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+        int hour = 0;
+        java.util.regex.Matcher tm = java.util.regex.Pattern
+                .compile("(\\d{1,2}):(\\d{2})\\s*(am|pm)?").matcher(low);
+        if (tm.find()) {
+            hour = Integer.parseInt(tm.group(1));
+            String ap = tm.group(3);
+            if ("pm".equals(ap) && hour != 12) hour += 12;
+            if ("am".equals(ap) && hour == 12) hour = 0;
+        }
+        return new int[]{year, month, day, hour};
+    }
+
+    private static java.time.LocalDate today() { return java.time.LocalDate.now(); }
 
     @GetMapping("/stats")
     public Map<String, Object> stats() {
