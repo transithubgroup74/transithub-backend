@@ -19,13 +19,17 @@ import java.time.format.DateTimeFormatter;
 @RequiredArgsConstructor
 public class EmailService {
 
+    private static final String SENDGRID_ENDPOINT = "https://api.sendgrid.com/v3/mail/send";
     private static final String BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
 
     private final JavaMailSender mailSender;
 
     // Railway blocks outbound SMTP (both 587 and 465 time out), so mail goes
-    // over Brevo's HTTPS API when a key is present. SMTP stays as the fallback
-    // for local runs, where it works fine.
+    // over an HTTPS API when a key is present. Preference order is SendGrid,
+    // then Brevo, then SMTP as the fallback for local runs, where it works fine.
+    @Value("${sendgrid.api-key:}")
+    private String sendGridApiKey;
+
     @Value("${brevo.api-key:}")
     private String brevoApiKey;
 
@@ -97,10 +101,39 @@ public class EmailService {
     }
 
     private void send(String to, String subject, String html) {
-        if (brevoApiKey != null && !brevoApiKey.isBlank()) {
+        if (sendGridApiKey != null && !sendGridApiKey.isBlank()) {
+            sendViaSendGrid(to, subject, html);
+        } else if (brevoApiKey != null && !brevoApiKey.isBlank()) {
             sendViaBrevo(to, subject, html);
         } else {
             sendViaSmtp(to, subject, html);
+        }
+    }
+
+    private void sendViaSendGrid(String to, String subject, String html) {
+        String payload = """
+            {"personalizations":[{"to":[{"email":"%s"}]}],"from":{"email":"%s","name":"%s"},"subject":"%s","content":[{"type":"text/html","value":"%s"}]}
+            """.formatted(json(to), json(fromEmail), json(fromName), json(subject), json(html));
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(SENDGRID_ENDPOINT))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("Authorization", "Bearer " + sendGridApiKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            // SendGrid returns 202 Accepted on success; any non-2xx is a failure.
+            if (response.statusCode() / 100 != 2) {
+                throw new IllegalStateException(
+                        "SendGrid rejected the message (HTTP " + response.statusCode() + "): " + response.body());
+            }
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not reach SendGrid: " + e.getMessage(), e);
         }
     }
 
