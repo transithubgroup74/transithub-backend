@@ -34,6 +34,50 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.createBooking(email, scheduleId, seatNumber, qrCode));
     }
 
+    // Book several seats on one trip in a single transaction (group booking).
+    // Body: { scheduleId?, origin, destination, departsAt, operator, busClass,
+    //         amountPerSeat, seats:[{seatNumber, passengerName, qrCode}, ...] }.
+    // All seats book together or none do (see BookingService.createBookingBatch).
+    @PostMapping("/batch")
+    public ResponseEntity<?> createBatch(
+            @RequestBody Map<String, Object> body,
+            Authentication authentication) {
+        try {
+            String email = authentication.getName();
+            String scheduleIdRaw = (String) body.get("scheduleId");
+            UUID scheduleId = (scheduleIdRaw != null && !scheduleIdRaw.isBlank())
+                    ? UUID.fromString(scheduleIdRaw) : null;
+            java.math.BigDecimal amountPerSeat = body.get("amountPerSeat") != null
+                    ? new java.math.BigDecimal(String.valueOf(body.get("amountPerSeat")))
+                    : java.math.BigDecimal.ZERO;
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> seatMaps = (List<Map<String, Object>>) body.get("seats");
+            List<BookingService.SeatBooking> seats = new java.util.ArrayList<>();
+            if (seatMaps != null) {
+                for (Map<String, Object> m : seatMaps) {
+                    Integer seatNumber = m.get("seatNumber") != null
+                            ? Integer.valueOf(String.valueOf(m.get("seatNumber"))) : null;
+                    seats.add(new BookingService.SeatBooking(
+                            seatNumber,
+                            (String) m.get("passengerName"),
+                            (String) m.get("qrCode")));
+                }
+            }
+
+            List<Booking> created = bookingService.createBookingBatch(
+                    email, scheduleId,
+                    (String) body.get("origin"), (String) body.get("destination"),
+                    (String) body.get("departsAt"), (String) body.get("operator"),
+                    (String) body.get("busClass"), amountPerSeat, seats);
+            return ResponseEntity.ok(created);
+        } catch (com.transithub.backend.exception.ApiException e) {
+            throw e;  // global handler returns its status + code (e.g. seat_taken)
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     // Create a booking from full trip details (works for demo/mock buses that
     // have no real schedule). Persists to the user's account so it syncs.
     @PostMapping("/custom")

@@ -30,6 +30,10 @@ public class Booking {
 
     private Integer seatNumber;
 
+    // Name of the person travelling in this seat. Defaults to the account
+    // holder for a solo booking; set per seat when one account books a group.
+    private String passengerName;
+
     @Builder.Default
     private String status = "pending";
 

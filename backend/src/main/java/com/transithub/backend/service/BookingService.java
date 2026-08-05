@@ -100,6 +100,68 @@ public class BookingService {
         return bookingRepository.save(booking);
     }
 
+    /** One seat within a group booking: which seat, who's on it, and its QR. */
+    public record SeatBooking(Integer seatNumber, String passengerName, String qrCode) {}
+
+    /**
+     * Books several seats on the same trip in a single transaction. If ANY seat
+     * has just been taken (by someone else, or duplicated in the request), the
+     * whole group rolls back — so a passenger never pays for 3 seats and gets 2.
+     */
+    @Transactional
+    public List<Booking> createBookingBatch(String userEmail,
+                                            UUID scheduleId,
+                                            String origin, String destination, String departsAt,
+                                            String operator, String busClass,
+                                            java.math.BigDecimal amountPerSeat,
+                                            List<SeatBooking> seats) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (seats == null || seats.isEmpty()) {
+            throw new ApiException(400, "no_seats", "No seats were selected.");
+        }
+
+        boolean real = scheduleId != null;
+        Schedule schedule = real
+                ? scheduleRepository.findById(scheduleId)
+                        .orElseThrow(() -> new RuntimeException("Schedule not found"))
+                : null;
+
+        // Seats already held by other passengers on this trip. As we go we also
+        // add each requested seat, so a seat repeated in the request is rejected.
+        java.util.Set<Integer> taken = new java.util.HashSet<>(real
+                ? getBookedSeats(scheduleId)
+                : getCustomBookedSeats(operator, origin, destination, departsAt));
+
+        java.math.BigDecimal amount = real ? schedule.getRoute().getBasePrice() : amountPerSeat;
+
+        List<Booking> toSave = new java.util.ArrayList<>();
+        for (SeatBooking s : seats) {
+            Integer seatNo = s.seatNumber();
+            if (seatNo != null && !taken.add(seatNo)) {
+                throw new ApiException(409, "seat_taken",
+                        "Seat " + seatNo + " has just been taken. Please choose another seat.");
+            }
+            Booking.BookingBuilder b = Booking.builder()
+                    .user(user)
+                    .seatNumber(seatNo)
+                    .passengerName(s.passengerName())
+                    .totalAmount(amount)
+                    .status("confirmed")
+                    .qrCode(s.qrCode())
+                    .origin(real ? schedule.getRoute().getOrigin() : origin)
+                    .destination(real ? schedule.getRoute().getDestination() : destination);
+            if (real) {
+                b.schedule(schedule);
+            } else {
+                b.departsAt(departsAt).operator(operator).busClass(busClass);
+            }
+            toSave.add(b.build());
+        }
+        return bookingRepository.saveAll(toSave);
+    }
+
     /** Route label that works whether the booking has a Schedule or its own fields. */
     public static String routeLabel(Booking b) {
         if (b.getSchedule() != null && b.getSchedule().getRoute() != null) {

@@ -47,7 +47,10 @@ public class AdminController {
         for (Booking b : bookingRepository.findAll()) {
             Map<String, Object> m = new HashMap<>();
             m.put("id", b.getId().toString());
+            // Account holder who paid, plus the actual traveller on this seat
+            // (differs for group bookings where one account books several seats).
             m.put("passenger", b.getUser() != null ? b.getUser().getName() : "");
+            m.put("passengerName", b.getPassengerName());
             m.put("email", b.getUser() != null ? b.getUser().getEmail() : "");
             m.put("route", BookingService.routeLabel(b));
             m.put("seat", b.getSeatNumber());
